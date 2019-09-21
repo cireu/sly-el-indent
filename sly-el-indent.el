@@ -406,6 +406,9 @@ Like `common-lisp-get-indentation', but try to search property
     (puthash 'with-output-to-string '(as progn) result)
     ;; `lisp-indent-loop' cannot recognize `cl-loop' properly
     (puthash 'cl-loop 'sly-el-indent-cl-loop result)
+    ;; Only Elisp has `letf' `letf*'
+    (dolist (sym '(letf letf* cl-letf cl-letf*))
+      (puthash sym '(as let) result))
     (sly-el-indent-ht-map #'list result)))
 
 ;; Create Style
