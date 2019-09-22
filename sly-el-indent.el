@@ -62,10 +62,16 @@ Like `common-lisp-get-indentation', but try to search property
              (pcase (get name 'lisp-indent-function)
                (`defun (common-lisp-get-indentation 'defun))
                ((and it (pred functionp))
-                ;; Indent function using `lisp-indent-function'
-                ;; only accept 2 params, the indent-point and state
-                (lambda (_ state indent-point &rest _rest)
-                  (funcall it indent-point state)))
+                ;; HACK: Indent function using `lisp-indent-function'
+                ;; only accept 2 params, the indent-point and state.
+                ;; So we need to wrap old function with lambda.
+                ;; But we cannot return a function directly, so we create
+                ;; a gensym and assign the wrapped function
+                ;; to the function slot of gensym.
+                (let ((f (make-symbol "indent-func")))
+                  (fset f (lambda (_ state indent-point &rest _rest)
+                            (funcall it indent-point state)))
+                  f))
                (some some)))
            ;; From system derived information.
            (let ((system-info (gethash name common-lisp-system-indentation)))
