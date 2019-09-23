@@ -417,6 +417,7 @@ style.")
 ;;;###autoload
 (defun sly-el-indent-setup ()
   "Enable style in current buffer."
+  (interactive)
   (setq-local lisp-indent-function #'common-lisp-indent-function)
   (common-lisp-set-style "emacs-lisp"))
 
