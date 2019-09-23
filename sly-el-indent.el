@@ -229,25 +229,6 @@ Like `common-lisp-get-indentation', but try to search property
   (let ((result (make-hash-table :test #'eq)))
     (dolist (fun '(
                    ;; Copy from `cl'
-                   (get* . cl-get)
-                   (random* . cl-random)
-                   (rem* . cl-rem)
-                   (mod* . cl-mod)
-                   (round* . cl-round)
-                   (truncate* . cl-truncate)
-                   (ceiling* . cl-ceiling)
-                   (floor* . cl-floor)
-                   (rassoc* . cl-rassoc)
-                   (assoc* . cl-assoc)
-                   (member* . cl-member)
-                   (delete* . cl-delete)
-                   (remove* . cl-remove)
-                   (defsubst* . cl-defsubst)
-                   (sort* . cl-sort)
-                   (function* . cl-function)
-                   (defmacro* . cl-defmacro)
-                   (defun* . cl-defun)
-                   (mapcar* . cl-mapcar)
                    remprop
                    getf
                    tailp
@@ -338,7 +319,6 @@ Like `common-lisp-get-indentation', but try to search property
                    shiftf
                    remf
                    psetf
-                   (define-setf-method . define-setf-expander)
                    the
                    locally
                    multiple-value-setq
@@ -403,8 +383,7 @@ Like `common-lisp-get-indentation', but try to search property
                    ;; `defmethod' and `defgeneric' should follow CL convention.
                    defmethod
                    defgeneric))
-      (let ((new (if (consp fun) (prog1 (cdr fun) (setq fun (car fun)))
-                   (intern (format "cl-%s" fun)))))
+      (let ((new (intern (format "cl-%s" fun))))
         (puthash new `(as ,fun) result)))
     ;; `if' in Emacs Lisp accepts rest parameters to be the else-form
     (puthash 'if 2 result)
@@ -415,6 +394,10 @@ Like `common-lisp-get-indentation', but try to search property
     ;; Only Elisp has `letf' `letf*'
     (dolist (sym '(letf letf* cl-letf cl-letf*))
       (puthash sym '(as let) result))
+    (dolist (sym '(defun* cl-defun cl-defmacro defmacro*
+                   defsubst cl-defsubst defsubst*
+                   define-compiler-macro cl-define-compiler-macro))
+      (puthash sym '(as defun) result))
     (sly-el-indent-ht-map #'list result)))
 
 ;; Create Style
