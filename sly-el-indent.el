@@ -311,8 +311,6 @@ Like `common-lisp-get-indentation', but try to search property
                    typep
                    deftype
                    defstruct
-                   callf2
-                   callf
                    letf*
                    letf
                    rotatef
@@ -391,9 +389,13 @@ Like `common-lisp-get-indentation', but try to search property
     (puthash 'with-output-to-string '(as progn) result)
     ;; `lisp-indent-loop' cannot recognize `cl-loop' properly
     (puthash 'cl-loop 'sly-el-indent-cl-loop result)
-    ;; Only Elisp has `letf' `letf*'
+    ;; Elisp specific cl extensions
     (dolist (sym '(letf letf* cl-letf cl-letf*))
       (puthash sym '(as let) result))
+    (dolist (sym '(callf cl-callf))
+      (puthash sym 2 result))
+    (dolist (sym '(callf2 cl-callf2))
+      (puthash sym 3 result))
     (dolist (sym '(defun* cl-defun cl-defmacro defmacro*
                    defsubst cl-defsubst defsubst*
                    define-compiler-macro cl-define-compiler-macro))
