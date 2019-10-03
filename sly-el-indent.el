@@ -396,6 +396,8 @@ Like `common-lisp-get-indentation', but try to search property
       (puthash sym 2 result))
     (dolist (sym '(callf2 cl-callf2))
       (puthash sym 3 result))
+    (dolist (sym '(cl-flet cl-flet* cl-labels))
+      (puthash sym '(as flet) result))
     (dolist (sym '(defun* cl-defun cl-defmacro defmacro*
                    defsubst cl-defsubst defsubst*))
       (puthash sym '(as defun) result))
