@@ -46,69 +46,70 @@ Sign: (All (K V T) (-> (-> K V T) (HashTable K V) (Listof T)))"
     result))
 
 (defun sly-el-indent-common-lisp-get-indentation-hack (name &optional full)
-  "Return the indentation spec for NAME.
+  "Retrieves the indentation information for NAME.
 
-Like `common-lisp-get-indentation', but try to search property
+Like `sly--lisp-indent-get-indentation' but try to search property
 `lisp-indent-function' of NAME when in emacs-lisp-mode."
   (let ((method
-          (or
-           ;; From style
-           (when common-lisp-style
-             (gethash name (common-lisp-active-style-methods)))
-           ;; From global settings.
-           (get name 'common-lisp-indent-function)
-           ;; Emacs Lisp specificaiton
-           (when (derived-mode-p 'emacs-lisp-mode)
-             (pcase (get name 'lisp-indent-function)
-               (`defun (common-lisp-get-indentation 'defun))
-               ((and it (pred functionp))
-                ;; HACK: Indent function using `lisp-indent-function'
-                ;; only accept 2 params, the indent-point and state.
-                ;; So we need to wrap old function with lambda.
-                ;; But we cannot return a function directly, so we create
-                ;; a gensym and assign the wrapped function
-                ;; to the function slot of gensym.
-                (let ((f (make-symbol "indent-func")))
-                  (fset f (lambda (_ state indent-point &rest _rest)
-                            (funcall it indent-point state)))
-                  f))
-               (some some)))
-           ;; From system derived information.
-           (let ((system-info (gethash name common-lisp-system-indentation)))
-             (if (not (cdr system-info))
-                 (caar system-info)
-               (let ((guess nil)
-                     (guess-n 0)
-                     (package (common-lisp-symbol-package full)))
-                 (dolist (info system-info guess)
-                   (let* ((pkgs (cdr info))
-                          (n (length pkgs)))
-                     (cond ((member package pkgs)
-                            ;; This is it.
-                            (return (car info)))
-                           ((> n guess-n)
-                            ;; If we can't find the real thing, go with the one
-                            ;; accessible in most packages.
-                            (setf guess (car info)
-                                  guess-n n)))))))))))
-    (if (and (consp method) (eq 'as (car method)))
-        (common-lisp-get-indentation (cadr method))
+         (or
+          ;; From style
+          (when sly-common-lisp-style
+            (gethash name (sly--lisp-indent-active-style-methods)))
+          ;; From global settings.
+          (get name 'sly-common-lisp-indent-function)
+          (get name 'common-lisp-indent-function)
+          ;; Emacs Lisp specificaiton
+          (when (derived-mode-p 'emacs-lisp-mode)
+            (pcase (get name 'lisp-indent-function)
+              (`defun (sly--lisp-indent-get-indentation 'defun))
+              ((and it (pred functionp))
+               ;; HACK: Indent function using `lisp-indent-function'
+               ;; only accept 2 params, the indent-point and state.
+               ;; So we need to wrap old function with lambda.
+               ;; But we cannot return a function directly, so we create
+               ;; a gensym and assign the wrapped function
+               ;; to the function slot of gensym.
+               (let ((f (make-symbol "indent-func")))
+                 (fset f (lambda (_ state indent-point &rest _rest)
+                           (funcall it indent-point state)))
+                 f))
+              (some some)))
+          ;; From system derived information.
+          (let ((system-info (gethash name sly-common-lisp-system-indentation)))
+            (if (not (cdr system-info))
+                (caar system-info)
+              (let ((guess nil)
+                    (guess-n 0)
+                    (package (sly--lisp-indent-symbol-package full)))
+                (cl-dolist (info system-info guess)
+                  (let* ((pkgs (cdr info))
+                         (n (length pkgs)))
+                    (cond ((member package pkgs)
+                           ;; This is it.
+                           (cl-return (car info)))
+                          ((> n guess-n)
+                           ;; If we can't find the real thing, go with the one
+                           ;; accessible in most packages.
+                           (setf guess (car info)
+                                 guess-n n)))))))))))
+    (if (eq 'as (car-safe method))
+        (sly--lisp-indent-get-indentation (cadr method))
       method)))
 
-(advice-add #'common-lisp-get-indentation :override
+(advice-add #'sly--lisp-indent-get-indentation  :override
             #'sly-el-indent-common-lisp-get-indentation-hack)
 
 (defun sly-el-indent-common-lisp-indent-loop-macro-1 (parse-state indent-point)
-  "Like `common-lisp-indent-loop-macro-1', but add a special case for `cl-loop'."
+  "Like `sly--lisp-indent-loop-macro-1' but handle `cl-loop'."
   (catch 'return-indentation
     (save-excursion
       ;; Find first clause of loop macro, and use it to establish
       ;; base column for indentation
-      (goto-char (common-lisp-indent-parse-state-start parse-state))
+      (goto-char (sly--lisp-indent-parse-state-start parse-state))
       (let ((loop-start-column (current-column)))
         (when (looking-at (rx "(cl-loop"))
           (forward-word 1))
-        (common-lisp-loop-advance-past-keyword-on-line)
+        (sly--lisp-indent-loop-advance-past-keyword-on-line)
 
         (when (eolp)
           (forward-line 1)
@@ -116,14 +117,15 @@ Like `common-lisp-get-indentation', but try to search property
           ;; If indenting first line after "(loop <newline>"
           ;; cop out ...
           (if (<= indent-point (point))
-              (throw 'return-indentation (+ lisp-loop-clauses-indentation
-                                            loop-start-column)))
+              (throw 'return-indentation
+                (+ loop-start-column
+                   sly-lisp-loop-clauses-indentation)))
           (back-to-indentation))
 
         (let* ((case-fold-search t)
                (loop-macro-first-clause (point))
                (previous-expression-start
-                 (common-lisp-indent-parse-state-prev parse-state))
+                (sly--lisp-indent-parse-state-prev parse-state))
                (default-value (current-column))
                (loop-body-p nil)
                (loop-body-indentation nil)
@@ -133,17 +135,17 @@ Like `common-lisp-get-indentation', but try to search property
           (goto-char previous-expression-start)
 
           ;; Handle a body-introducing-clause which ends a line specially.
-          (if (looking-at common-lisp-body-introducing-loop-macro-keyword)
+          (if (looking-at sly--common-lisp-body-introducing-loop-macro-keyword)
               (let ((keyword-position (current-column)))
                 (setq loop-body-p t)
                 (setq loop-body-indentation
-                      (if (common-lisp-loop-advance-past-keyword-on-line)
+                      (if (sly--lisp-indent-loop-advance-past-keyword-on-line)
                           (current-column)
                         (back-to-indentation)
                         (if (/= (current-column) keyword-position)
                             (+ 2 (current-column))
-                          (+ lisp-loop-body-forms-indentation
-                             (if lisp-loop-indent-body-forms-relative-to-loop-start
+                          (+ sly-lisp-loop-body-forms-indentation
+                             (if sly-lisp-loop-indent-body-forms-relative-to-loop-start
                                  loop-start-column
                                keyword-position))))))
 
@@ -155,8 +157,8 @@ Like `common-lisp-get-indentation', but try to search property
             ;; as if there were a "when" and indent under it ...
             (let ((exit nil))
               (while (and (null exit)
-                          (looking-at common-lisp-prefix-loop-macro-keyword))
-                (if (null (common-lisp-loop-advance-past-keyword-on-line))
+                          (looking-at sly--common-lisp-prefix-loop-macro-keyword))
+                (if (null (sly--lisp-indent-loop-advance-past-keyword-on-line))
                     (progn (setq exit t)
                            (back-to-indentation)))))
 
@@ -167,16 +169,16 @@ Like `common-lisp-get-indentation', but try to search property
                ;; We're in the middle of a clause body ...
                (setq loop-body-p t)
                (setq loop-body-indentation (current-column)))
-              ((looking-at common-lisp-body-introducing-loop-macro-keyword)
+              ((looking-at sly--common-lisp-body-introducing-loop-macro-keyword)
                (setq loop-body-p t)
                ;; Know there's something else on the line (or would
                ;; have been caught above)
-               (common-lisp-loop-advance-past-keyword-on-line)
+               (sly--lisp-indent-loop-advance-past-keyword-on-line)
                (setq loop-body-indentation (current-column)))
               (t
                (setq loop-body-p nil)
-               (if (or (looking-at common-lisp-indenting-loop-macro-keyword)
-                       (looking-at common-lisp-prefix-loop-macro-keyword))
+               (if (or (looking-at sly--common-lisp-indenting-loop-macro-keyword)
+                       (looking-at sly--common-lisp-prefix-loop-macro-keyword))
                    (setq default-value (+ 2 (current-column))))
                (setq indented-clause-indentation (+ 2 (current-column)))
                ;; We still need loop-body-indentation for "syntax errors" ...
@@ -196,11 +198,11 @@ Like `common-lisp-get-indentation', but try to search property
              ;; vanilla clause.
              (if loop-body-p
                  loop-body-indentation
-               (or (and (looking-at ";") (common-lisp-trailing-comment))
+               (or (and (looking-at ";") (sly--lisp-indent-trailing-comment))
                    default-value)))
-            ((looking-at common-lisp-indent-indented-loop-macro-keyword)
+            ((looking-at sly--common-lisp-indent-indented-loop-macro-keyword)
              indented-clause-indentation)
-            ((looking-at common-lisp-indent-clause-joining-loop-macro-keyword)
+            ((looking-at sly--common-lisp-indent-clause-joining-loop-macro-keyword)
              (let ((stolen-indent-column nil))
                (forward-line -1)
                (while (and (null stolen-indent-column)
@@ -209,21 +211,18 @@ Like `common-lisp-get-indentation', but try to search property
                  (if (and (< (current-column) loop-body-indentation)
                           (looking-at "\\(#?:\\)?\\sw"))
                      (progn
-                       (if (looking-at common-lisp-loop-macro-else-keyword)
-                           (common-lisp-loop-advance-past-keyword-on-line))
-                       (setq stolen-indent-column
-                             (current-column)))
+                       (if (looking-at sly--lisp-indent-loop-macro-else-keyword)
+                           (sly--lisp-indent-loop-advance-past-keyword-on-line))
+                       (setq stolen-indent-column (current-column)))
                    (forward-line -1)))
-               (if stolen-indent-column
-                   stolen-indent-column
-                 default-value)))
+               (or stolen-indent-column default-value)))
             (t default-value)))))))
 
 (defun sly-el-indent-cl-loop (&rest args)
   "Indent `cl-loop' properly"
-  (cl-letf (((symbol-function #'common-lisp-indent-loop-macro-1)
+  (cl-letf (((symbol-function #'sly--lisp-indent-loop-macro-1)
              #'sly-el-indent-common-lisp-indent-loop-macro-1))
-           (apply #'lisp-indent-loop args)))
+           (apply #'sly--lisp-indent-loop args)))
 
 (defun sly-el-indent-make-spec ()
   (let ((result (make-hash-table :test #'eq)))
@@ -406,7 +405,7 @@ Like `common-lisp-get-indentation', but try to search property
     (sly-el-indent-ht-map #'list result)))
 
 ;; Create Style
-(common-lisp-add-style "emacs-lisp" "basic"
+(sly--lisp-indent-add-style "emacs-lisp" "basic"
                        '((lisp-lambda-list-keyword-alignment t))
                        (sly-el-indent-make-spec)
                        nil
@@ -424,7 +423,7 @@ style.")
   "Enable style in current buffer."
   (interactive)
   (setq-local lisp-indent-function #'common-lisp-indent-function)
-  (common-lisp-set-style "emacs-lisp"))
+  (sly-common-lisp-set-style "emacs-lisp"))
 
 (provide 'sly-el-indent)
 
